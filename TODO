@@ -1,0 +1,12 @@
+--> Fit Kernel Ridge for feature selection, select the features based on importance of the coefficients
+--> Fit Lasso and Elastic Net and select features based on the importance of the coefficients
+
+See if these technqiues improve our results or not
+
+--> Even further outlier detection either by projecting with TSNE and/or PCA and fitting an Isolation Tree and/or Elliptic Envelope to the Data. This should be done jointly (x, y) --> also not forget to scale the data, i saw imporvement with RobustScaler, although we can in theory also do QuantileTransformation ...
+
+--> More fine grain outlier detection within the train set - VIF, ANOVA (idk how to use that)
+
+--> Train more model, at some point we can also try a NN Regressor
+
+--> Play around with Voting and Stacking Regressors
