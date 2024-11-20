@@ -182,19 +182,17 @@ def process_all_ecg(signals, freq=300, n_jobs=-1):
     else:
         return None
     
-data_train = pd.read_csv('test.csv', header=0, index_col='id')
+data_train = pd.read_csv('train.csv', header=0, index_col='id')
 
-# X = data_train.drop(columns=['y'])
-# y = data_train.loc[:, 'y']
-
-X = data_train
+X = data_train.drop(columns=['y'])
+y = data_train.loc[:, 'y']
 
 feature_df = process_all_ecg(X)
 feature_df = feature_df.dropna(axis=1, how='all')
-# feature_cols = feature_df.columns
-# feature_df.reset_index(drop=True, inplace=True)
-# y.reset_index(drop=True, inplace=True)
-# extracted_df = pd.concat([y, feature_df], ignore_index=True, axis=1)
-# extracted_df.columns = ['y']+feature_cols.to_list()
+feature_cols = feature_df.columns
+feature_df.reset_index(drop=True, inplace=True)
+y.reset_index(drop=True, inplace=True)
+extracted_df = pd.concat([y, feature_df], ignore_index=True, axis=1)
+extracted_df.columns = ['y']+feature_cols.to_list()
 extracted_df = feature_df
-extracted_df.to_csv('test_features.csv')
+extracted_df.to_csv('train_features.csv')
