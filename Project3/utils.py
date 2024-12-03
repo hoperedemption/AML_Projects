@@ -2,7 +2,7 @@ import torch
 import torchvision
 import pickle
 import gzip
-import numpy as np
+import numpy as npgi
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
