@@ -11,13 +11,19 @@ from tqdm import tqdm
 from colorama import Fore, Style
 from PIL import Image
 from IPython.display import display, Image as IPImage
+from rnmfbreg import robust_nmf_breg
 
 def load_zipped_pickle(filename):
     with gzip.open(filename, 'rb') as f:
         loaded_object = pickle.load(f)
         return loaded_object
 
-def load_data(file_path, filter_expert=False):
+def filter(filter_expert, filter_amateur, item):
+    return (not filter_expert and not filter_amateur)  \
+                or (filter_expert and item['dataset'] == 'expert') \
+                or (filter_amateur and item['dataset'] == 'amateur')
+
+def load_data(file_path, filter_expert=False, filter_amateur=False):
     # Load the data
     data = load_zipped_pickle(file_path)
     
@@ -25,26 +31,86 @@ def load_data(file_path, filter_expert=False):
     names = []
     images = []
     segmentations = []
+    box_images = []
+    box_segmentations = []
     bounding_boxes = []
     
     with tqdm(data) as loop:
         for item in loop:
-            if not filter_expert or item['dataset'] == 'expert':
+            if filter(filter_expert, filter_amateur, item):
                 name, box = item['name'], item['box']
                 imgs = item['video'][:, :, item['frames']]
                 segs = item['label'][:, :, item['frames']]
+                
+                bounding_box_indices = np.argwhere(box)
+                top_left = bounding_box_indices.min(axis=0)
+                bottom_right = bounding_box_indices.max(axis=0)
+                
+                box_imgs = imgs[top_left[0]:bottom_right[0], top_left[1]:bottom_right[1], :]
+                box_segs = segs[top_left[0]:bottom_right[0], top_left[1]:bottom_right[1], :]
                          
                 for i in range(len(item['frames']) ):
                     img, seg = imgs[:, :, i], segs[:, :, i]
+                    box_img, box_seg = box_imgs[:, :, i], box_segs[:, :, i]
                     names.append(name)
                     images.append(img)
                     segmentations.append(seg)
                     bounding_boxes.append(box)
+                    box_images.append(box_img)
+                    box_segmentations.append(box_seg)
                     
-    return names, images, segmentations, bounding_boxes
+    return names, images, segmentations, bounding_boxes, box_images, box_segmentations
 
+def load_videos(file_path, filter_expert=False, filter_amateur=False):
+    # data loading
+    data = load_zipped_pickle(file_path)
 
-def overlay_segmentation_grayscale(image, mask, bounding_box, alpha=0.7, colormap='cividis'):
+    videos = []
+    
+    with tqdm(data) as loop:
+        for item in loop:
+            if filter(filter_expert, filter_amateur, item):
+                    videos.append(item['video'])
+                    
+    return videos
+
+def load_training_segmentation_data(file_path, filter_expert=False, filter_amateur=False, sparse=False):
+    # data loading
+    data = load_zipped_pickle(file_path)
+    
+    images, segmentations = [], []
+    
+    with tqdm(data) as loop:
+        for item in loop:
+            if filter(filter_expert, filter_amateur, item):
+                # compute sparse if sparse is set to true
+                video = item['video']
+                if sparse:
+                    _, _, S = robust_nmf_breg(video, n_comp=2, iterations=150, λ=0.01)
+                    video = S
+                
+                # extract images and correspoding segmentations
+                imgs = video[:, :, item['frames']]
+                segs = item['label'][:, :, item['frames']]
+                
+                # extract bounding box information
+                box = item['box']
+                bounding_box_indices = np.argwhere(box)
+                top_left = bounding_box_indices.min(axis=0)
+                bottom_right = bounding_box_indices.max(axis=0)
+                
+                box_imgs = imgs[top_left[0]:bottom_right[0], top_left[1]:bottom_right[1], :]
+                box_segs = segs[top_left[0]:bottom_right[0], top_left[1]:bottom_right[1], :]
+                
+                # append them to the list
+                for i in range(len(item['frames'])):
+                    images.append(box_imgs[:, :, i])
+                    segmentations.append(box_segs[:, :, i])
+    
+    return images, segmentations                
+                
+                
+def overlay_segmentation_grayscale(image, mask, bounding_box=None, alpha=0.7, colormap='cividis'):
     # Normalize grayscale image to [0, 1] for blending
     if image.max() > 1:
         image = image / 255.0
@@ -64,25 +130,26 @@ def overlay_segmentation_grayscale(image, mask, bounding_box, alpha=0.7, colorma
     # Plot the overlay with bounding boxes
     fig, ax = plt.subplots(figsize=(8, 8))
     
-    # Compute the bounding box coordinates (min/max row and column)
-    bounding_box_indices = np.argwhere(bounding_box)
-    top_left = bounding_box_indices.min(axis=0)  # (min_row, min_col)
-    bottom_right = bounding_box_indices.max(axis=0)  # (max_row, max_col)
+    if bounding_box is not None:
+        # Compute the bounding box coordinates (min/max row and column)
+        bounding_box_indices = np.argwhere(bounding_box)
+        top_left = bounding_box_indices.min(axis=0)  # (min_row, min_col)
+        bottom_right = bounding_box_indices.max(axis=0)  # (max_row, max_col)
 
-    # Draw the bounding box on the plot
-    rect = Rectangle(
-        (top_left[1], top_left[0]),  # (x, y): (col, row)
-        bottom_right[1] - top_left[1] + 1,  # width
-        bottom_right[0] - top_left[0] + 1,  # height
-        linewidth=2, edgecolor='red', facecolor='none'
-    )
-    ax.add_patch(rect)
+        # Draw the bounding box on the plot
+        rect = Rectangle(
+            (top_left[1], top_left[0]),  # (x, y): (col, row)
+            bottom_right[1] - top_left[1] + 1,  # width
+            bottom_right[0] - top_left[0] + 1,  # height
+            linewidth=2, edgecolor='red', facecolor='none'
+        )
+        ax.add_patch(rect)
 
     ax.imshow(overlay)
     ax.axis('off')
     ax.set_title("Segmentation Image")
+    fig.savefig('segmented_image.png')
     plt.show()
-    plt.savefig('segmented_image.png')
 
 def convert_video_to_gif(video, display_in_jupyter=False):
      # Convert each frame to a PIL Image
