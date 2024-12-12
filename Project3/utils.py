@@ -12,6 +12,11 @@ from colorama import Fore, Style
 from PIL import Image
 from IPython.display import display, Image as IPImage
 from rnmfbreg import robust_nmf_breg
+from skimage import measure
+
+def save_zipped_pickle(obj, filename):
+    with gzip.open(filename, 'wb') as f:
+        pickle.dump(obj, f, 2)
 
 def load_zipped_pickle(filename):
     with gzip.open(filename, 'rb') as f:
@@ -109,6 +114,47 @@ def load_training_segmentation_data(file_path, filter_expert=False, filter_amate
     
     return images, segmentations                
                 
+def overlay_segmentation_countor_grayscale(image, mask, bounding_box=None, alpha=0.7, color='red'):
+     # Normalize grayscale image to [0, 1] for blending
+    if image.max() > 1:
+        image = image / 255.0
+    
+    # Convert grayscale to RGB for consistent blending
+    image_rgb = np.stack([image] * 3, axis=-1)  # (H, W, 3)
+    
+    # Plot the overlay with bounding boxes
+    fig, ax = plt.subplots(figsize=(8, 8))
+    
+    # Find contours
+    contours = measure.find_contours(mask, level=0.5)
+
+    # Plot the image
+    ax.imshow(image_rgb, interpolation='nearest')
+
+    # Plot the contours on top of the image
+    for contour in contours:
+        ax.plot(contour[:, 1], contour[:, 0], linewidth=2, color=color)  # Adjust color and linewidth as needed
+        
+    if bounding_box is not None:
+        # Compute the bounding box coordinates (min/max row and column)
+        bounding_box_indices = np.argwhere(bounding_box)
+        top_left = bounding_box_indices.min(axis=0)  # (min_row, min_col)
+        bottom_right = bounding_box_indices.max(axis=0)  # (max_row, max_col)
+
+        # Draw the bounding box on the plot
+        rect = Rectangle(
+            (top_left[1], top_left[0]),  # (x, y): (col, row)
+            bottom_right[1] - top_left[1] + 1,  # width
+            bottom_right[0] - top_left[0] + 1,  # height
+            linewidth=2, edgecolor='red', facecolor='none'
+        )
+        ax.add_patch(rect)
+    
+    ax.axis('off')
+    ax.set_title("Segmentation Image")
+    fig.savefig('segmented_image.png')
+    plt.show()
+    
                 
 def overlay_segmentation_grayscale(image, mask, bounding_box=None, alpha=0.7, colormap='cividis'):
     # Normalize grayscale image to [0, 1] for blending
@@ -116,7 +162,7 @@ def overlay_segmentation_grayscale(image, mask, bounding_box=None, alpha=0.7, co
         image = image / 255.0
 
     # Convert grayscale to RGB for consistent blending
-    image_rgb = np.stack([image] * 3, axis=-1)  # Shape: (H, W, 3)
+    image_rgb = np.stack([image] * 3, axis=-1)  # (H, W, 3)
     
     # Apply colormap to the mask
     cmap = plt.get_cmap(colormap)
@@ -191,7 +237,7 @@ def print_evaluation_metrics(metrics, epoch=None):
         print(f"🕒 Epoch: {epoch}")
     print("=" * 50)
     for metric, value in metrics.items():
-        emoji = "✅" if metric == "accuracy" else "📉" if "loss" in metric else "📈"
+        emoji = "✅" if metric == "iou" else "📉" if "loss" in metric else "📈"
         color = Fore.GREEN if value > 0.9 else Fore.RED if value < 0.5 else Fore.WHITE
         print(f"{color}{emoji} {metric.capitalize()}: {value:.4f}")
     print("=" * 50)
@@ -208,4 +254,35 @@ def load_checkpoint(filepath, model, optimizer):
     model.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['state_dict'])
 
-    
+def plot_training_history(history: dict, epochs, title="Training and Validation Metrics", filename='plot_metrics.png'):
+    # Validate input
+    required_keys = ['train_loss', 'val_loss', 'val_iou']
+    assert all([any([rkey == key for rkey in required_keys]) for key in history.keys()])
+
+    plt.figure(figsize=(14, 6))
+
+    # Plot loss
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, history['train_loss'], label='Training Loss', marker='o', linestyle='-', color='red')
+    plt.plot(epochs, history['val_loss'], label='Validation Loss', marker='o', linestyle='--', color='blue')
+    plt.title("Loss", fontsize=16)
+    plt.xlabel("Epochs", fontsize=14)
+    plt.ylabel("Loss", fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(alpha=0.3)
+
+    # Plot accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, history['val_iou'], label='Validation IoU', marker='o', linestyle='--', color='green')
+    plt.title("Accuracy", fontsize=16)
+    plt.xlabel("Epochs", fontsize=14)
+    plt.ylabel("Accuracy", fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(alpha=0.3)
+
+    # Main title and layout
+    plt.suptitle(title, fontsize=18)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+    plt.savefig(filename)
+
