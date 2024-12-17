@@ -38,7 +38,7 @@ class DoubleBaseConv(nn.Module):
         return self.c(x)
     
 class UNET(nn.Module):
-    def __init__(self, kernel_size, stride, padding, in_channels=3, out_channels=1, features=[64,128,256,512,1024]):
+    def __init__(self, kernel_size, stride, padding, in_channels=3, out_channels=1, features=[64,128,256,512,1024], dropout=0.1):
         super().__init__()
         
         f = features[:-1]
@@ -52,11 +52,8 @@ class UNET(nn.Module):
                                             DoubleBaseConv(features[1], features[0], kernel_size, stride, padding)]))
         self.bottleneck = DoubleConv(features[-2], features[-1], features[-2], kernel_size, stride, padding)
                 
-        # print(len(self.down_arch))
-        # print(len(self.up_arch))
-        # # self.down = nn.Sequential(*self.down_arch)
-        # # self.up = nn.Sequential(*self.up_arch)
         self.final_project = nn.Conv2d(features[0], out_channels, kernel_size, stride, padding)
+        self.dropout = nn.Dropout(dropout)
         
         
     def forward(self, x):
@@ -65,13 +62,13 @@ class UNET(nn.Module):
         # descent 
         d = x
         for down_block in self.down_arch:
-            d = down_block[0](d)
+            d = self.dropout(down_block[0](d))
             up_list.append(d)
             d = down_block[1](d)
 
         
         # pass through the bottleneck layer        
-        d = self.bottleneck(d)
+        d = self.dropout(self.bottleneck(d))
         
         # go up
         u = d
@@ -83,10 +80,10 @@ class UNET(nn.Module):
                 u = TF.resize(u, size=skip.shape[-2:])
             
             u = torch.concat([skip, u], dim=1) 
-            u = up_block[1](u)            
+            u = self.dropout(up_block[1](u))         
 
         # project 
-        return self.final_project(u)
+        return torch.sigmoid(self.final_project(u))
 
 
 def test():
@@ -94,11 +91,10 @@ def test():
     stride = (1, 1)
     padding = (1, 1)
     
-    x = torch.randn(3, 1, 160, 160)
+    x = torch.randn(5, 1, 224, 224)
     model = UNET(in_channels=1, out_channels=1, kernel_size=kernel_size, stride=stride, padding=padding)
     
     
     preds = model(x)
-
+    print(preds.shape)
     assert preds.shape == x.shape
-    
