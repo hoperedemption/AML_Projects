@@ -4,7 +4,10 @@ import pickle
 import gzip
 import numpy as np
 import os
+import cv2
 import pandas as pd
+import io
+import imageio
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from tqdm import tqdm
@@ -12,7 +15,10 @@ from colorama import Fore, Style
 from PIL import Image
 from IPython.display import display, Image as IPImage
 from rnmfbreg import robust_nmf_breg
-from skimage import measure
+from skimage import measure, feature
+from scipy import ndimage
+from skimage.filters import threshold_multiotsu
+from rnmfbreg import robust_nmf_breg
 
 def save_zipped_pickle(obj, filename):
     with gzip.open(filename, 'wb') as f:
@@ -66,6 +72,104 @@ def load_data(file_path, filter_expert=False, filter_amateur=False):
                     
     return names, images, segmentations, bounding_boxes, box_images, box_segmentations
 
+def load_data_smart(file_path, device='cpu'):
+    # Load the data
+    data = load_zipped_pickle(file_path)
+    
+     # The arrays we will be using
+    images_amateur = []
+    filtered_amateur = []
+    segmentations_amateur = []
+    images_expert = []
+    filtered_expert = []
+    segmentations_expert = []
+    
+    with tqdm(data) as loop:
+        for item in loop:
+            # load the data 
+            video = item['video']
+            seg = item['label']
+            
+            # Normalize the video
+            min_val, max_val = video.min(), video.max()
+            video = (video - min_val) / (max_val - min_val)
+                
+            # RNMF
+            video_height, video_width, video_frames = video.shape[0], video.shape[1], video.shape[2] 
+            W, H, S = robust_nmf_breg(video, n_comp=2, iterations=250, λ=0.02, tol=1e-6, device=device)
+            rec = (W @ H).reshape(video_height, video_width, video_frames)
+            
+            # Normalize rec
+            rec = (rec - rec.min()) / (rec.max() - rec.min())  
+            rest = np.abs(video - rec)
+            
+            imgs = video[:, :, item['frames']]
+            filtered = rest[:, :, item['frames']]
+            segs = seg[:, :, item['frames']]
+            
+            
+            for i in range(len(item['frames']) ):
+                img, filt, seg = imgs[:, :, i], filtered[:, :, i], segs[:, :, i]
+                
+                if item['dataset'] == 'amateur':
+                    images_amateur.append(img)
+                    filtered_amateur.append(filt)
+                    segmentations_amateur.append(seg)
+                elif item['dataset'] == 'expert':
+                    images_expert.append(img)
+                    filtered_expert.append(filt)
+                    segmentations_expert.append(seg)
+                else:
+                    raise ValueError('Not amateur or expert')
+    
+    dict = {
+        'amateur_img': images_amateur, 
+        'amateur_filt': filtered_amateur,
+        'amateur_seg': segmentations_amateur, 
+        'expert_img': images_expert, 
+        'expert_filt': filtered_expert,
+        'expert_seg': segmentations_expert
+    }
+    
+    return dict        
+            
+        
+def load_data_simple(file_path):
+    # Load the data
+    data = load_zipped_pickle(file_path)
+    
+    # The arrays we will be using
+    images_amateur = []
+    segmentations_amateur = []
+    images_expert = []
+    segmentations_expert = []
+    
+    with tqdm(data) as loop:
+        for item in loop:
+            imgs = item['video'][:, :, item['frames']]
+            segs = item['label'][:, :, item['frames']]
+      
+            for i in range(len(item['frames']) ):
+                img, seg = imgs[:, :, i], segs[:, :, i]
+                
+                if item['dataset'] == 'amateur':
+                    images_amateur.append(img)
+                    segmentations_amateur.append(seg)
+                elif item['dataset'] == 'expert':
+                    images_expert.append(img)
+                    segmentations_expert.append(seg)
+                else:
+                    raise ValueError('Not amateur or expert')
+    
+    dict = {
+        'amateur_img': images_amateur, 
+        'amateur_seg': segmentations_amateur, 
+        'expert_img': images_expert, 
+        'expert_seg': segmentations_expert
+    }
+    
+    return dict
+
 def load_videos(file_path, filter_expert=False, filter_amateur=False):
     # data loading
     data = load_zipped_pickle(file_path)
@@ -113,8 +217,91 @@ def load_training_segmentation_data(file_path, filter_expert=False, filter_amate
                     segmentations.append(box_segs[:, :, i])
     
     return images, segmentations                
-                
-def overlay_segmentation_countor_grayscale(image, mask, bounding_box=None, alpha=0.7, color='red'):
+
+def preprocess_old(image):
+    normalised = image / np.max(image)
+    
+    sobel_h = ndimage.sobel(normalised, 0)
+    sobel_w = ndimage.sobel(normalised, 1)
+
+    magnitude = np.sqrt(sobel_h ** 2 + sobel_w ** 2)
+    magnitude *= 255.0 / np.max(magnitude)
+    
+    edges = feature.canny(normalised, sigma=1).astype(np.float32)
+
+    thresholds = threshold_multiotsu(normalised, classes=2)
+
+    regions = np.digitize(normalised, bins=thresholds)
+    
+    return normalised, magnitude, edges, regions
+
+def preprocess_new(rest):
+    thresholds = threshold_multiotsu(rest, classes=2)
+    regions = np.digitize(rest, bins=thresholds)
+    return regions
+
+def resize_segmentation_data(imgs, boxes, target_height, target_width):
+    train_imgs, train_segs = np.zeros((len(imgs), target_height, target_width)), np.zeros((len(boxes), target_height, target_width))
+    for i, (img, seg) in enumerate(zip(imgs, boxes)):
+        img = cv2.resize(img, (target_height, target_width), interpolation=cv2.INTER_LINEAR_EXACT)
+        seg = Image.fromarray(seg).resize((target_height, target_width), resample=Image.BILINEAR)
+        train_imgs[i], train_segs[i] = img, np.asarray(seg) 
+    return train_imgs, train_segs
+
+def resize_segmentation_data_simple(imgs, segs, target_height, target_width):
+    train_imgs, train_segs = np.zeros((len(imgs), target_height, target_width)), np.zeros((len(segs), target_height, target_width))
+    for i, (img, seg) in enumerate(zip(imgs, segs)):
+        if (img.shape[-2] != target_height or img.shape[-1] != target_width):
+            img = cv2.resize(img, (target_height, target_width), interpolation=cv2.INTER_LINEAR_EXACT)
+        if (seg.shape[-2] != target_height or seg.shape[-1] != target_width):
+            seg = np.asarray(Image.fromarray(seg).resize((target_height, target_width), resample=Image.BILINEAR))
+        train_imgs[i], train_segs[i] = img, seg
+   
+    return train_imgs, train_segs
+
+def resize_segmentation_data_simple(imgs, filtered, segs, target_height, target_width):
+    train_imgs, train_filt, train_segs = np.zeros((len(imgs), target_height, target_width)), np.zeros((len(filtered), target_height, target_width)), \
+        np.zeros((len(segs), target_height, target_width))
+    for i, (img, filt, seg) in enumerate(zip(imgs, filtered, segs)):
+        if (img.shape[-2] != target_height or img.shape[-1] != target_width):
+            img = cv2.resize(img, (target_height, target_width), interpolation=cv2.INTER_LINEAR_EXACT)
+        if (filt.shape[-2] != target_height or filt.shape[-1] != target_width):
+            filt = cv2.resize(filt, (target_height, target_width), interpolation=cv2.INTER_LINEAR_EXACT)
+        if (seg.shape[-2] != target_height or seg.shape[-1] != target_width):
+            seg = np.asarray(Image.fromarray(seg).resize((target_height, target_width), resample=Image.BILINEAR))
+        train_imgs[i], train_filt[i], train_segs[i] = img, filt, seg
+   
+    return train_imgs, train_filt, train_segs
+
+def resize_images(imgs, target_height, target_width):
+    resized_imgs = np.zeros((len(imgs), target_height, target_width))
+    for i, img in enumerate(imgs):
+        if (img.shape[-2] != target_height or img.shape[-1] != target_width):
+            img = cv2.resize(img, (target_height, target_width), interpolation=cv2.INTER_LINEAR_EXACT)
+        resized_imgs[i] = img
+        
+    return resized_imgs
+
+def resize_test_images(imgs, target_height, target_width):
+    resized_imgs = np.zeros((target_height, target_width, imgs.shape[-1]))
+    for i in range(imgs.shape[-1]):
+        img = imgs[..., i]
+        if (img.shape[-2] != target_height or img.shape[-1] != target_width):
+            img = cv2.resize(img, (target_height, target_width), interpolation=cv2.INTER_LINEAR_EXACT)
+        resized_imgs[..., i] = img
+        
+    return resized_imgs
+
+def preprocess_segmentation_data(imgs, rest):     
+    augmented_imgs = np.zeros((imgs.shape[0], 3, imgs.shape[1], imgs.shape[2]))
+    for i, (img, rest_img) in enumerate(zip(imgs, rest)):
+        multiotsu = preprocess_new(rest_img)
+        ndarrays = [img, rest_img, multiotsu]
+        augmented_img = np.concatenate([ndarray[None, ...] for ndarray in ndarrays], axis=0)
+        augmented_imgs[i] = augmented_img
+    return augmented_imgs
+
+def overlay_segmentation_countor_grayscale(image, mask, bounding_box=None, color='red', colormap=None, filename="segmented_image.png"):
      # Normalize grayscale image to [0, 1] for blending
     if image.max() > 1:
         image = image / 255.0
@@ -129,7 +316,10 @@ def overlay_segmentation_countor_grayscale(image, mask, bounding_box=None, alpha
     contours = measure.find_contours(mask, level=0.5)
 
     # Plot the image
-    ax.imshow(image_rgb, interpolation='nearest')
+    if colormap is None:
+        ax.imshow(image_rgb, interpolation='nearest')
+    else: # only when using regions
+        ax.imshow(image, interpolation='nearest', cmap=colormap)
 
     # Plot the contours on top of the image
     for contour in contours:
@@ -152,8 +342,24 @@ def overlay_segmentation_countor_grayscale(image, mask, bounding_box=None, alpha
     
     ax.axis('off')
     ax.set_title("Segmentation Image")
-    fig.savefig('segmented_image.png')
+    fig.savefig(filename)
     plt.show()
+    return fig, ax
+    
+def overlay_segmentation_countor_grayscale_for_gif(image, mask, bounding_box=None, color='red', colormap=None):
+    fig, ax = overlay_segmentation_countor_grayscale(image, mask, bounding_box=bounding_box, color=color, colormap=colormap)
+    # Remove axes and margins
+    ax.axis('off')
+    fig.tight_layout(pad=0)
+
+    # Save the plot as an RGB array
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
+    buf.seek(0)
+    overlay_image = imageio.imread(buf)  # Read the image as a NumPy array
+
+    plt.close(fig)  # Close the figure to release memory
+    return overlay_image
     
                 
 def overlay_segmentation_grayscale(image, mask, bounding_box=None, alpha=0.7, colormap='cividis'):
@@ -196,6 +402,25 @@ def overlay_segmentation_grayscale(image, mask, bounding_box=None, alpha=0.7, co
     ax.set_title("Segmentation Image")
     fig.savefig('segmented_image.png')
     plt.show()
+
+def visualize_pixel_intensities(image, colormap='gray', title="Pixel Intensity Visualization", filename='pixel_intensity.png'):
+    # Create a figure and axis
+    fig, ax = plt.subplots(figsize=(8, 8))
+    
+    # Display the image with a colormap
+    cax = ax.imshow(image, cmap=colormap, vmin=image.min(), vmax=image.max())
+    
+    # Add a color bar to the side
+    cbar = fig.colorbar(cax, ax=ax)
+    cbar.set_label("Pixel Intensity Values")
+    
+    # Add title and remove axes for clarity
+    ax.set_title(title)
+    ax.axis('off')  # Remove axes for better visibility
+    
+    # Show the figure
+    plt.show()
+    plt.savefig(filename)
 
 def convert_video_to_gif(video, display_in_jupyter=False):
      # Convert each frame to a PIL Image
@@ -243,16 +468,17 @@ def print_evaluation_metrics(metrics, epoch=None):
     print("=" * 50)
     print(f"{Style.RESET_ALL}")
 
-def save_checkpoint(checkpoint, model_name, filename='model.pth.tar'):
-    filepath = 'checkpoints/' + f'{model_name}_' + filename
+def save_checkpoint(model, model_name, filename='model.pth.tar'):
+    filepath = f'{model_name}_' + filename
     print_checkpoint_saving(filepath)
-    torch.save(checkpoint, filename)
+    torch.save(model.state_dict(), filepath)
+    return filepath
     
-def load_checkpoint(filepath, model, optimizer):
+def load_checkpoint(filepath, model):
     print_checkpoint_loading(filepath)
-    checkpoint = torch.load(filepath)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['state_dict'])
+    checkpoint = torch.load(filepath, weights_only=True, map_location=torch.device('cpu'))
+    model.load_state_dict(checkpoint)
+    return model
 
 def plot_training_history(history: dict, epochs, title="Training and Validation Metrics", filename='plot_metrics.png'):
     # Validate input
@@ -286,3 +512,24 @@ def plot_training_history(history: dict, epochs, title="Training and Validation 
     plt.show()
     plt.savefig(filename)
 
+def preprocess_test_data(data):
+    videos = []
+    names = []
+    for item in tqdm(data):
+        video = item['video']
+        video = video.astype(np.float32)
+        videos.append(video)
+        names.append([item['name']])
+    return names, videos
+
+def get_sequences(arr):
+    first_indices, last_indices, lengths = [], [], []
+    n, i = len(arr), 0
+    arr = [0] + list(arr) + [0]
+    for index, value in enumerate(arr[:-1]):
+        if arr[index+1]-arr[index] == 1:
+            first_indices.append(index)
+        if arr[index+1]-arr[index] == -1:
+            last_indices.append(index)
+    lengths = list(np.array(last_indices)-np.array(first_indices))
+    return first_indices, lengths

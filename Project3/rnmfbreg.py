@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 from sklearn.decomposition import NMF 
 
-def robust_nmf_breg(X: np.ndarray, n_comp: int, iterations: int, λ: float, tol: float):
+def robust_nmf_breg(X: np.ndarray, n_comp: int, iterations: int, λ: float, tol: float, device='cpu'):
     # PyTorch adaptation of the algorithm 
     # in the paper https://pmc.ncbi.nlm.nih.gov/articles/PMC8541511/
     
@@ -19,11 +19,11 @@ def robust_nmf_breg(X: np.ndarray, n_comp: int, iterations: int, λ: float, tol:
     H = nmf.components_
     
     # Initalisation
-    X = torch.tensor(X, dtype=torch.float32)
-    S = torch.zeros_like(X)
-    p = torch.zeros_like(X)
-    W = torch.tensor(W, dtype=torch.float32)
-    H = torch.tensor(H, dtype=torch.float32)
+    X = torch.tensor(X, dtype=torch.float32, device=device)
+    S = torch.zeros_like(X, dtype=torch.float32, device=device)
+    p = torch.zeros_like(X, dtype=torch.float32, device=device)
+    W = torch.tensor(W, dtype=torch.float32, device=device)
+    H = torch.tensor(H, dtype=torch.float32, device=device)
     
     # define the objective func 
     loss = lambda W, H, S: .5*torch.norm(X - W @ H - S, 'fro') ** 2 # reconstruction loss
