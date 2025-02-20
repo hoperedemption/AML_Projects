@@ -37,6 +37,35 @@ The goal was to predict age from MRI brain scans using various ML techniques. Th
 
 <p align="center"><em>Figure 1: Outlier Detection and Removal</em></p>
 
+# Project 2 - ECG Classification
 
+## Feature Extraction
+The features were extracted using **Hearpy, Biosppy, and NeuroKit2** as suggested in the project presentation slides. After experimentation, we selected approximately **210 features**, including:
+- **QRS interval features**
+- **Heart Rate Variability (HRV) metrics**
+- **Frequency-domain and time-domain features**
+- **CSI, geometric properties, and Poincaré plot features**
+
+### Preprocessing Steps:
+- Applied a **baseline wander filter** to reduce noise.
+- **Scaled** the signals appropriately.
+- Removed irregularities such as **ectopic beats from RR intervals**.
+- Processed signals using the **Biosppy ECG function**.
+- Used **multi-threading** to compute features efficiently without overloading VRAM.
+
+## Model Selection
+Since many features contained **NaN values**, we considered models that either support NaN values or work well with imputation.
+
+### Models Tested:
+- **LGBM Classifier**
+- **XGB Classifier**
+- **Histogram Gradient Boosting Classifier** (Best Model)
+- **Extra Trees Classifier**
+- **Gaussian Process (GP) Classifier**
+- **SVM Classifier**
+- **Decision Tree Classifier**
+- **One-vs-One Pairwise Classifiers** with a **Meta Classifier**
+
+The best-performing model on the validation set and public leaderboard was the **Histogram Gradient Boosting Classifier**, which was chosen for the final submission.
 
 
