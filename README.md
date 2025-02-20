@@ -91,3 +91,16 @@ The best-performing model on the validation set and public leaderboard was the *
   </tr>
 </table>
 
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="Project2/original_signal.png" width="200"><br>
+      <em>Figure 6: Original Signal</em>
+    </td>
+    <td align="center">
+      <img src="Project2/transformed_signal.png" width="200"><br>
+      <em>Figure 7: Transformed Signal</em>
+    </td>
+  </tr>
+</table>
+
