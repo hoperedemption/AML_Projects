@@ -32,6 +32,7 @@ The goal is to predict age from MRI brain scans using various ML techniques. The
 - **Ensemble Model** combining **Gaussian Process Regressor, SVR, and LightGBM** to reduce overfitting and improve performance.
 
 <p align="center">
-  <img src="Project1/Outliers.png" alt="MRI Brain Scan Example" style="object-fit:cover; object-position: 50% 20%;">
+  <img src="Project1/Outliers.png" alt="Outlier Detection and Removal" style="object-fit:cover; object-position: 50% 20%;">
+  <figcaption style="font-style: italic; color: gray;">Figure 1: Outlier Detection and Removal</figcaption>
 </p>
 
