@@ -166,6 +166,9 @@ Among these, **UNET++** achieved by far the highest performance.
   <img src="Project3/output_mistral_valve.gif" alt="Mitral Valve Segmentation" width="500">
 </p>
 
+<p align="center"><em>Figure 8: Mitral Valve Segmentation</em></p>
+
+
 ## Installation & Usage
 ### Dependencies
 - Python 3.x
