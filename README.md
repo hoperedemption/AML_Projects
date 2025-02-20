@@ -105,7 +105,7 @@ The best-performing model on the validation set and public leaderboard was the *
 </table>
 
 
-# Project 3 - Robust Non-negative Matrix Factorisation (RNMF) Pipeline
+# Project 3 - Mitral Valve Video Segmentation
 
 ## Overview
 This repository contains our PyTorch implementation of Robust Non-negative Matrix Factorisation (RNMF) using Bregman iterations, inspired by Hannah Dröge's paper ([RNMF Paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC8541511/)). The original implementation was in MATLAB, and we have reimplemented and optimized it for GPU acceleration, significantly improving processing speed.
