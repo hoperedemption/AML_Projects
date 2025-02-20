@@ -162,9 +162,7 @@ Among these, **UNET++** achieved by far the highest performance.
 - **Dimensional Permutation**: Converted outputs to NumPy format.
 - **Multiprocessing for Efficiency**: Utilized multiprocessing to accelerate computation while using batch processing to prevent VRAM overload.
 
-<video autoplay loop muted width="500" height="300" src="Project3/output_mistral_valve.gif">
-            Mitral Valve Segmentation Outputs
-          </video>
+![Mitral Valve Segmentation](Project3/output_mistral_valve.gif)
 
 
 ## Installation & Usage
