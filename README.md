@@ -5,7 +5,7 @@ These 3 projects, were part of the AS 2024 **Advanced Machine Learning** at ETH 
 ## Project 1 - Age Regression Based on MRI Brain Scans
 
 ### Overview
-The goal is to predict age from MRI brain scans using various ML techniques. The focus was on data preprocessing, feature selection, and model ensembling to achieve optimal regression performance.
+The goal was to predict age from MRI brain scans using various ML techniques. The focus was on data preprocessing, feature selection, and model ensembling to achieve optimal regression performance.
 
 ### Key Steps
 ### Data Preprocessing
