@@ -169,7 +169,7 @@ Among these, **UNET++** achieved by far the highest performance.
 - scikit-learn
 - NumPy
 - OpenCV
-- Multiprocessing
+- Joblib for Multiprocessing
 
 ### Running the Pipeline
 ```bash
