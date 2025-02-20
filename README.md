@@ -1,6 +1,6 @@
 
 # Advanced Machine Learning Projects
-These 3 projects, were part of the AS 2024 **Advanced Machine Learning** at ETH course, developed by my friend Sebastian and myself.
+These 3 projects, were part of the AS 2024 **Advanced Machine Learning** course at ETHZ, developed by my friend Sebastian and myself.
 
 # Project 1 - Age Regression Based on MRI Brain Scans
 
