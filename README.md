@@ -68,4 +68,26 @@ Since many features contained **NaN values**, we considered models that either s
 
 The best-performing model on the validation set and public leaderboard was the **Histogram Gradient Boosting Classifier**, which was chosen for the final submission.
 
+<table>
+  <tr>
+    <td align="center">
+      <img src="Project2/ecg_onsets.png" width="200"><br>
+      <em>Figure 2: ECG Onsets used as Features</em>
+    </td>
+    <td align="center">
+      <img src="Project2/ecg_summary.png" width="200"><br>
+      <em>Figure 3: R Peaks and template beats</em>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="Project2/offset_onset_ranges.png" width="200"><br>
+    <em>Figure 3: QRS Complex</em>
+    </td>
+    <td align="center">
+      <img src="Project2/psd_lombscale_periodigram.png" width="200"><br>
+      <em>Figure 4: PSD Periodigram</em>
+    </td>
+  </tr>
+</table>
 
