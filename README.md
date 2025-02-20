@@ -31,9 +31,12 @@ The goal is to predict age from MRI brain scans using various ML techniques. The
 ## Final Model and Submission
 - **Ensemble Model** combining **Gaussian Process Regressor, SVR, and LightGBM** to reduce overfitting and improve performance.
 
-![Outlier Detection and Removal](Project1/Outliers.png)
+<p align="center">
+  <img src="Project1/Outliers.png" alt="Outlier Detection and Removal" width="500">
+</p>
 
-*Figure 1: Outlier Detection and Removal*
+<p align="center"><em>Figure 1: Outlier Detection and Removal</em></p>
+
 
 
 
